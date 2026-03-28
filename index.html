@@ -3,31 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2.5D Sandbox Kitchen - Trash & Tools</title>
+    <title>Happy Food</title>
     <style>
         :root { --glass: rgba(255, 255, 255, 0.1); --accent: #ff9f43; --tool-accent: #4ecdc4; }
         body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Inter', sans-serif; touch-action: none; }
-        
-        /* UI HUD */
         .hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; padding: 20px; box-sizing: border-box; }
         .nav { display: flex; gap: 10px; pointer-events: auto; }
         .btn { background: var(--glass); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 12px 20px; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold; }
         .btn:hover { background: var(--accent); }
         .btn-tool:hover { background: var(--tool-accent); }
-
-        /* Shelves */
         .shelf { position: absolute; bottom: -400px; left: 50%; transform: translateX(-50%); width: 85%; max-width: 800px; background: rgba(0,0,0,0.85); backdrop-filter: blur(20px); padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); gap: 15px; border-radius: 20px 20px 0 0; transition: 0.5s ease-out; pointer-events: auto; border: 1px solid rgba(255,255,255,0.1); }
         .shelf.active { bottom: 0; }
         .item { background: rgba(255,255,255,0.05); aspect-ratio: 1; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 28px; transition: transform 0.2s; border: 1px solid transparent; }
         .item:hover { transform: scale(1.1); background: var(--glass); border-color: rgba(255,255,255,0.5); }
-
-        /* Trash Can */
-        #trash-zone {
-            position: absolute; right: 20px; bottom: 20px; width: 80px; height: 80px;
-            background: rgba(238, 82, 83, 0.2); border: 2px dashed #ee5253; border-radius: 16px;
-            display: flex; align-items: center; justify-content: center; font-size: 32px;
-            pointer-events: auto; transition: 0.3s; z-index: 5;
-        }
+        #trash-zone { position: absolute; right: 20px; bottom: 20px; width: 80px; height: 80px; background: rgba(238, 82, 83, 0.2); border: 2px dashed #ee5253; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 32px; pointer-events: auto; transition: 0.3s; z-index: 5; }
         #trash-zone.hovered { background: rgba(238, 82, 83, 0.6); transform: scale(1.1); }
     </style>
 </head>
@@ -39,11 +28,9 @@
         <button class="btn btn-tool" onclick="toggleShelf('shelf-tools')">🛠️ Tools</button>
         <button class="btn" style="margin-left:auto; background: #ee5253;" onclick="location.reload()">🧹 Reset</button>
     </div>
-
     <div id="shelf-ingredients" class="shelf"></div>
     <div id="shelf-tools" class="shelf"></div>
 </div>
-
 <div id="trash-zone">🗑️</div>
 
 <script type="importmap">
@@ -62,7 +49,7 @@
     import { DragControls } from 'three/addons/controls/DragControls.js';
     import * as CANNON from 'cannon';
 
-    // 1. SEPARATE DATA DICTIONARIES
+    // 1. DATA
     const INGREDIENTS = {
         apple: { icon: '🍎', file: 'apple.fbx', texture: 'apple_tex.png', color: 0xff0000 },
         banana: { icon: '🍌', file: 'banana.fbx', texture: null, color: 0xffe135 },
@@ -78,29 +65,29 @@
     };
 
     const TOOLS = {
-        // Example placeholders for tools you'll add later
         knife: { icon: '🔪', file: 'knife.fbx', texture: null, color: 0xaaaaaa },
         pan: { icon: '🥘', file: 'pan.fbx', texture: null, color: 0x333333 }
     };
 
-    // 2. SCENE & 2.5D CAMERA
+    // 2. SCENE & CAMERA
     const scene = new THREE.Scene();
     const aspect = window.innerWidth / window.innerHeight;
-    const frustumSize = 6;
+    const frustumSize = 8;
     const camera = new THREE.OrthographicCamera(
         frustumSize * aspect / -2, frustumSize * aspect / 2, 
         frustumSize / 2, frustumSize / -2, 0.1, 1000
     );
-    camera.position.set(0, 1, 10); 
-    camera.lookAt(0, 1, 0);
+    camera.position.set(0, 2, 10); 
+    camera.lookAt(0, 2, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
     document.body.appendChild(renderer.domElement);
 
+    // 3. PHYSICS WORLD Setup
     const world = new CANNON.World();
-    world.gravity.set(0, -12, 0);
+    world.gravity.set(0, -9.82, 0);
 
     const texLoader = new THREE.TextureLoader();
     texLoader.load('background.png', (t) => scene.background = t);
@@ -110,21 +97,34 @@
     sun.castShadow = true;
     scene.add(sun);
 
-    // 3. TABLE
+    // 4. BULLETPROOF TABLE & FLOOR
+    // Physics Floor First (Always exists)
+    const groundBody = new CANNON.Body({ 
+        type: CANNON.Body.STATIC,
+        shape: new CANNON.Box(new CANNON.Vec3(10, 0.5, 10)) // 20x1x20 Physics Box
+    });
+    groundBody.position.set(0, -1.0, 0); 
+    world.addBody(groundBody);
+
+    // Try loading the FBX, with a fallback if it fails
     const fbxLoader = new FBXLoader();
     fbxLoader.load('models/table.fbx', (fbx) => {
-        fbx.position.set(0, -2.5, 0); 
+        fbx.position.set(0, -1.5, 0); // Position under the physics surface
         fbx.scale.set(0.006, 0.006, 0.006);
         fbx.traverse(c => { if(c.isMesh) { c.receiveShadow = true; c.castShadow = true; }});
         scene.add(fbx);
-
-        const groundBody = new CANNON.Body({ mass: 0 });
-        groundBody.addShape(new CANNON.Box(new CANNON.Vec3(10, 0.1, 10)));
-        groundBody.position.set(0, -1.2, 0); // Floor height
-        world.addBody(groundBody);
+    }, undefined, (err) => {
+        console.warn("Could not find table.fbx! Generating a placeholder table instead.", err);
+        // Fallback Table so the game still works
+        const geo = new THREE.BoxGeometry(15, 1, 3);
+        const mat = new THREE.MeshPhongMaterial({ color: 0x4a3b2c });
+        const fallbackTable = new THREE.Mesh(geo, mat);
+        fallbackTable.position.copy(groundBody.position);
+        fallbackTable.receiveShadow = true;
+        scene.add(fallbackTable);
     });
 
-    // 4. SPAWNING LOGIC (Accepts 'ingredient' or 'tool' category)
+    // 5. SPAWNING LOGIC (With 2.5D Locks)
     const draggableObjects = [];
     const physicsPairs = [];
 
@@ -146,42 +146,58 @@
                 }
             });
 
-            // Make tools heavier than ingredients as an example
-            const objectMass = category === 'tool' ? 3 : 1;
+            // Fallback if the ingredient FBX fails
+        }, undefined, (err) => {
+            console.warn(`Could not load ${config.file}, generating a cube instead.`);
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshPhongMaterial({ color: config.color }));
+            mesh.position.set((Math.random() - 0.5) * 4, 4, 0);
+            mesh.castShadow = true;
+            setupPhysics(mesh, category);
+        });
 
+        // Separated physics setup so both FBX and Fallbacks use it
+        function setupPhysics(mesh, category) {
+            const objectMass = category === 'tool' ? 3 : 1;
             const body = new CANNON.Body({ 
                 mass: objectMass, 
-                shape: new CANNON.Sphere(0.3),
-                position: new CANNON.Vec3(fbx.position.x, fbx.position.y, 0),
-                linearDamping: 0.5
+                shape: new CANNON.Sphere(0.3), // Sphere shape rolls nicely
+                position: new CANNON.Vec3(mesh.position.x, mesh.position.y, 0),
+                linearFactor: new CANNON.Vec3(1, 1, 0),  // THE 2.5D LOCK: Stops Z movement natively
+                angularFactor: new CANNON.Vec3(0, 0, 1)  // Locks rotation to look 2D
             });
 
             world.addBody(body);
-            scene.add(fbx);
-            draggableObjects.push(fbx);
-            physicsPairs.push({ mesh: fbx, body: body });
-        });
+            scene.add(mesh);
+            draggableObjects.push(mesh);
+            physicsPairs.push({ mesh: mesh, body: body });
+        }
     };
 
-    // 5. TRASH TRACKING & DRAG CONTROLS
+    // 6. DRAG CONTROLS (Kinematic vs Dynamic fix)
     let mouseX = 0, mouseY = 0;
-    window.addEventListener('pointermove', (e) => {
-        mouseX = e.clientX;
-        mouseY = e.clientY;
-    });
+    window.addEventListener('pointermove', (e) => { mouseX = e.clientX; mouseY = e.clientY; });
 
     const trashZone = document.getElementById('trash-zone');
     const dControls = new DragControls(draggableObjects, camera, renderer.domElement);
 
     dControls.addEventListener('dragstart', (e) => {
         const p = physicsPairs.find(x => x.mesh === e.object);
-        if (p) { p.body.mass = 0; p.body.velocity.set(0,0,0); }
+        if (p) { 
+            // Kinematic means it ignores gravity but still has a physics body
+            p.body.type = CANNON.Body.KINEMATIC; 
+            p.body.velocity.set(0,0,0); 
+            p.body.angularVelocity.set(0,0,0);
+        }
     });
 
     dControls.addEventListener('drag', (e) => {
-        e.object.position.z = 0; // Lock Z
+        e.object.position.z = 0; 
+        const p = physicsPairs.find(x => x.mesh === e.object);
+        if (p) {
+            // Sync the physics body to the mouse while dragging
+            p.body.position.copy(e.object.position);
+        }
         
-        // Highlight trash can if hovering over it
         const rect = trashZone.getBoundingClientRect();
         if (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom) {
             trashZone.classList.add('hovered');
@@ -195,9 +211,7 @@
         const rect = trashZone.getBoundingClientRect();
         trashZone.classList.remove('hovered');
 
-        // Check if dropped inside the Trash Zone bounds
         if (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom) {
-            // Delete the object entirely
             scene.remove(e.object);
             draggableObjects.splice(draggableObjects.indexOf(e.object), 1);
             if (p) {
@@ -205,21 +219,19 @@
                 physicsPairs.splice(physicsPairs.indexOf(p), 1);
             }
         } else {
-            // Drop it back into the physics world
             if (p) {
-                p.body.mass = 1; // Restore weight
-                p.body.position.copy(e.object.position);
-                p.body.position.z = 0;
+                // Dynamic turns gravity back on
+                p.body.type = CANNON.Body.DYNAMIC; 
+                p.body.wakeUp();
             }
         }
     });
 
-    // 6. UI GENERATION & TOGGLES
+    // 7. UI GENERATION
     const shelfIngredients = document.getElementById('shelf-ingredients');
     Object.keys(INGREDIENTS).forEach(key => {
         const div = document.createElement('div');
-        div.className = 'item';
-        div.innerHTML = INGREDIENTS[key].icon;
+        div.className = 'item'; div.innerHTML = INGREDIENTS[key].icon;
         div.onclick = () => spawn(key, 'ingredient');
         shelfIngredients.appendChild(div);
     });
@@ -227,32 +239,30 @@
     const shelfTools = document.getElementById('shelf-tools');
     Object.keys(TOOLS).forEach(key => {
         const div = document.createElement('div');
-        div.className = 'item';
-        div.innerHTML = TOOLS[key].icon;
+        div.className = 'item'; div.innerHTML = TOOLS[key].icon;
         div.onclick = () => spawn(key, 'tool');
         shelfTools.appendChild(div);
     });
 
     window.toggleShelf = (targetId) => {
-        // Close all shelves except the one we clicked
         document.querySelectorAll('.shelf').forEach(shelf => {
-            if (shelf.id === targetId) {
-                shelf.classList.toggle('active');
-            } else {
-                shelf.classList.remove('active');
-            }
+            if (shelf.id === targetId) shelf.classList.toggle('active');
+            else shelf.classList.remove('active');
         });
     };
 
-    // 7. RENDER LOOP
+    // 8. RENDER LOOP (Fixed Clock stepping)
+    const clock = new THREE.Clock();
     function animate() {
         requestAnimationFrame(animate);
-        world.fixedStep();
+        
+        // Proper physics stepping
+        const dt = clock.getDelta();
+        world.step(1 / 60, dt, 3);
         
         physicsPairs.forEach(p => {
-            p.body.position.z = 0;
-            p.body.velocity.z = 0;
-            if (p.body.mass > 0) {
+            // Only sync visual mesh to body if we are NOT currently dragging it
+            if (p.body.type !== CANNON.Body.KINEMATIC) {
                 p.mesh.position.copy(p.body.position);
                 p.mesh.quaternion.copy(p.body.quaternion);
             }
