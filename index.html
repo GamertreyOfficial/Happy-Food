@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2.5D Sandbox Kitchen - Spawning Fixed</title>
+    <title>2.5D Kitchen - Scaling Fixed</title>
     <style>
         :root { --glass: rgba(255, 255, 255, 0.1); --accent: #ff9f43; --tool-accent: #4ecdc4; }
         body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Inter', sans-serif; touch-action: none; }
@@ -49,24 +49,24 @@
     import { DragControls } from 'three/addons/controls/DragControls.js';
     import * as CANNON from 'cannon';
 
-    // 1. DATA
+    // 1. DATA (Added 'scale' property so you can shrink the giant apple!)
     const INGREDIENTS = {
-        apple: { icon: '🍎', file: 'apple.fbx', texture: 'apple_tex.png', color: 0xff0000 },
-        banana: { icon: '🍌', file: 'banana.fbx', texture: null, color: 0xffe135 },
-        orange: { icon: '🍊', file: 'orange.fbx', texture: 'orange_tex.png', color: 0xffa500 },
-        lemon: { icon: '🍋', file: 'lemon.fbx', texture: null, color: 0xffff00 },
-        grape: { icon: '🍇', file: 'grape.fbx', texture: null, color: 0x6f2da8 },
-        strawberry: { icon: '🍓', file: 'strawberry.fbx', texture: null, color: 0xff2800 },
-        steak: { icon: '🥩', file: 'steak.fbx', texture: 'meat_tex.png', color: 0x911e1e },
-        cookie: { icon: '🍪', file: 'cookie.fbx', texture: null, color: 0x6b4423 },
-        chocolate: { icon: '🍫', file: 'chocolate.fbx', texture: null, color: 0x3d1d16 },
-        egg: { icon: '🥚', file: 'egg.fbx', texture: null, color: 0xffffff },
-        yolk: { icon: '🍳', file: 'openeggwithyolk.fbx', texture: null, color: 0xffcc00 }
+        apple: { icon: '🍎', file: 'apple.fbx', texture: 'apple_tex.png', color: 0xff0000, scale: 0.001 }, // <-- Tweak this number!
+        banana: { icon: '🍌', file: 'banana.fbx', texture: null, color: 0xffe135, scale: 0.005 },
+        orange: { icon: '🍊', file: 'orange.fbx', texture: 'orange_tex.png', color: 0xffa500, scale: 0.005 },
+        lemon: { icon: '🍋', file: 'lemon.fbx', texture: null, color: 0xffff00, scale: 0.005 },
+        grape: { icon: '🍇', file: 'grape.fbx', texture: null, color: 0x6f2da8, scale: 0.005 },
+        strawberry: { icon: '🍓', file: 'strawberry.fbx', texture: null, color: 0xff2800, scale: 0.005 },
+        steak: { icon: '🥩', file: 'steak.fbx', texture: 'meat_tex.png', color: 0x911e1e, scale: 0.005 },
+        cookie: { icon: '🍪', file: 'cookie.fbx', texture: null, color: 0x6b4423, scale: 0.005 },
+        chocolate: { icon: '🍫', file: 'chocolate.fbx', texture: null, color: 0x3d1d16, scale: 0.005 },
+        egg: { icon: '🥚', file: 'egg.fbx', texture: null, color: 0xffffff, scale: 0.005 },
+        yolk: { icon: '🍳', file: 'openeggwithyolk.fbx', texture: null, color: 0xffcc00, scale: 0.005 }
     };
 
     const TOOLS = {
-        knife: { icon: '🔪', file: 'knife.fbx', texture: null, color: 0xaaaaaa },
-        pan: { icon: '🥘', file: 'pan.fbx', texture: null, color: 0x333333 }
+        knife: { icon: '🔪', file: 'knife.fbx', texture: null, color: 0xaaaaaa, scale: 0.005 },
+        pan: { icon: '🥘', file: 'pan.fbx', texture: null, color: 0x333333, scale: 0.005 }
     };
 
     // 2. SCENE & CAMERA
@@ -97,41 +97,40 @@
     sun.castShadow = true;
     scene.add(sun);
 
-    // 4. TABLE & FLOOR
+    // 4. MASSIVE TABLE & PHYSICS FLOOR
     const groundBody = new CANNON.Body({ 
         type: CANNON.Body.STATIC,
-        shape: new CANNON.Box(new CANNON.Vec3(10, 0.5, 10)) 
+        shape: new CANNON.Box(new CANNON.Vec3(20, 0.5, 20)) // Widen physics floor
     });
     groundBody.position.set(0, -1.0, 0); 
     world.addBody(groundBody);
 
     const fbxLoader = new FBXLoader();
     fbxLoader.load('models/table.fbx', (fbx) => {
-        fbx.position.set(0, -1.5, 0); 
-        // DOUBLED TABLE SIZE HERE:
-        fbx.scale.set(0.012, 0.012, 0.012); 
+        fbx.position.set(0, -2.5, 0); 
+        // MASSIVE TABLE SCALE (Adjust if it's too big/small for your specific model):
+        fbx.scale.set(0.06, 0.06, 0.06); 
         fbx.traverse(c => { if(c.isMesh) { c.receiveShadow = true; c.castShadow = true; }});
         scene.add(fbx);
     }, undefined, () => {
-        const fallbackTable = new THREE.Mesh(new THREE.BoxGeometry(15, 1, 3), new THREE.MeshPhongMaterial({ color: 0x4a3b2c }));
+        const fallbackTable = new THREE.Mesh(new THREE.BoxGeometry(25, 1, 5), new THREE.MeshPhongMaterial({ color: 0x4a3b2c }));
         fallbackTable.position.copy(groundBody.position);
         fallbackTable.receiveShadow = true;
         scene.add(fallbackTable);
     });
 
-    // 5. SPAWNING LOGIC FIXED
+    // 5. SPAWNING LOGIC (Now utilizes individual model scales)
     const draggableObjects = [];
     const physicsPairs = [];
 
-    // The Y-coordinate limit so objects can't be dragged below the table top
-    // Adjusted to account for the table's collision height + the item's radius
     const MIN_DRAG_Y = -0.2; 
 
     window.spawn = function(key, category) {
         const config = category === 'tool' ? TOOLS[key] : INGREDIENTS[key];
         
         fbxLoader.load(`models/${config.file}`, (fbx) => {
-            fbx.scale.set(0.005, 0.005, 0.005);
+            // WE NOW USE THE SCALE FROM THE CONFIG!
+            fbx.scale.set(config.scale, config.scale, config.scale);
             fbx.position.set((Math.random() - 0.5) * 4, 4, 0); 
 
             fbx.traverse(child => {
@@ -145,11 +144,11 @@
                 }
             });
 
-            // FIXED: Actually hooking up the physics to the loaded model!
             setupPhysics(fbx, category);
 
         }, undefined, (err) => {
-            console.warn(`Could not load ${config.file}, generating a fallback cube instead.`);
+            console.warn(`Could not load ${config.file}, generating a fallback block instead.`);
+            // Fallback blocks are scaled strictly to 0.5x0.5x0.5 to match the physics sphere
             const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshPhongMaterial({ color: config.color }));
             mesh.position.set((Math.random() - 0.5) * 4, 4, 0);
             mesh.castShadow = true;
@@ -160,7 +159,7 @@
             const objectMass = category === 'tool' ? 3 : 1;
             const body = new CANNON.Body({ 
                 mass: objectMass, 
-                shape: new CANNON.Sphere(0.3),
+                shape: new CANNON.Sphere(0.25), // Adjusted physics sphere to match visual size better
                 position: new CANNON.Vec3(mesh.position.x, mesh.position.y, 0),
                 linearFactor: new CANNON.Vec3(1, 1, 0), 
                 angularFactor: new CANNON.Vec3(0, 0, 1)  
@@ -173,7 +172,7 @@
         }
     };
 
-    // 6. DRAG CONTROLS FIXED
+    // 6. DRAG CONTROLS
     let mouseX = 0, mouseY = 0;
     window.addEventListener('pointermove', (e) => { mouseX = e.clientX; mouseY = e.clientY; });
 
@@ -192,7 +191,6 @@
     dControls.addEventListener('drag', (e) => {
         e.object.position.z = 0; 
         
-        // NEW: The Bottom Clamp! Forces the object to stay above the table while dragging.
         if (e.object.position.y < MIN_DRAG_Y) {
             e.object.position.y = MIN_DRAG_Y;
         }
