@@ -3,232 +3,201 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro 3D Sandbox Kitchen</title>
+    <title>Happy Food</title>
     <style>
         :root {
-            --glass: rgba(255, 255, 255, 0.2);
-            --accent: #ff6b6b;
+            --glass: rgba(255, 255, 255, 0.1);
+            --accent: #ff9f43;
         }
-        body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background: #1a1a1a; }
+        body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Inter', sans-serif; }
         
-        /* Modern Glass UI */
-        .overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; z-index: 10;
-            display: flex; flex-direction: column;
+        /* UI Styling */
+        .hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; padding: 20px; box-sizing: border-box; }
+        .nav { display: flex; gap: 10px; pointer-events: auto; }
+        .btn {
+            background: var(--glass); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2);
+            color: white; padding: 12px 20px; border-radius: 8px; cursor: pointer; transition: 0.3s;
         }
+        .btn:hover { background: var(--accent); }
 
-        .hud-top {
-            display: flex; justify-content: space-between; padding: 20px;
-        }
-
-        .btn-main {
-            pointer-events: auto;
-            background: var(--glass);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.3);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 50px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            display: flex; align-items: center; gap: 8px;
-        }
-
-        .btn-main:hover { background: var(--accent); transform: scale(1.05); }
-
-        /* Fancy Shelf */
         .shelf {
-            pointer-events: auto;
-            position: absolute;
-            bottom: -300px; left: 50%;
-            transform: translateX(-50%);
-            width: 80%; max-width: 800px;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(20px);
-            border-radius: 20px 20px 0 0;
-            padding: 20px;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-            gap: 15px;
-            transition: bottom 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: absolute; bottom: -400px; left: 50%; transform: translateX(-50%);
+            width: 80%; background: rgba(0,0,0,0.8); backdrop-filter: blur(20px);
+            padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+            gap: 15px; border-radius: 20px 20px 0 0; transition: 0.5s; pointer-events: auto;
         }
-
         .shelf.active { bottom: 0; }
-
-        .item-card {
-            background: rgba(255,255,255,0.1);
-            border-radius: 12px;
-            aspect-ratio: 1/1;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; font-size: 24px; transition: 0.2s;
-            border: 1px solid transparent;
+        .item { 
+            background: rgba(255,255,255,0.05); aspect-ratio: 1; border-radius: 10px; 
+            display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 24px;
         }
-
-        .item-card:hover { background: var(--accent); border-color: white; }
-
-        #eatingScreen {
-            position: fixed; inset: 0; background: black; z-index: 100;
-            display: none; flex-direction: column; align-items: center; justify-content: center;
-            color: white; font-size: 2rem;
+        #eatView { 
+            position: fixed; inset: 0; background: black; display: none; 
+            flex-direction: column; align-items: center; justify-content: center; color: white; z-index: 100;
         }
     </style>
 </head>
 <body>
 
-    <div id="eatingScreen">
-        <div style="font-size: 100px">😋</div>
-        <p>Delicious!</p>
-        <button class="btn-main" onclick="stopEating()">Return to Kitchen</button>
+<div id="eatView">
+    <h1 style="font-size: 60px;">😋 NOM NOM!</h1>
+    <button class="btn" onclick="location.reload()">Cook Again</button>
+</div>
+
+<div class="hud">
+    <div class="nav">
+        <button class="btn" onclick="toggleShelf()">📦 Pantry</button>
+        <button class="btn" style="margin-left:auto; background: #ee5253;" onclick="document.getElementById('eatView').style.display='flex'">🍽️ Eat Food</button>
     </div>
 
-    <div class="overlay">
-        <div class="hud-top">
-            <div style="display:flex; gap:10px;">
-                <button class="btn-main" onclick="toggleShelf('shelfIngredients')">🍎 Ingredients</button>
-                <button class="btn-main" onclick="toggleShelf('shelfTools')" style="--accent: #4ecdc4;">🍳 Tools</button>
-            </div>
-            <button class="btn-main" onclick="startEating()" style="--accent: #ffd166; color: #333;">🍽️ Eat Finished Meal</button>
+    <div id="shelf" class="shelf">
         </div>
+</div>
 
-        <div id="shelfIngredients" class="shelf">
-            <div class="item-card" onclick="spawn('apple')">🍎</div>
-            <div class="item-card" onclick="spawn('orange')">🍊</div>
-            <div class="item-card" onclick="spawn('lemon')">🍋</div>
-            <div class="item-card" onclick="spawn('lime')">🥬</div>
-            <div class="item-card" onclick="spawn('grape')">🍇</div>
-            <div class="item-card" onclick="spawn('strawberry')">🍓</div>
-            <div class="item-card" onclick="spawn('blueberry')">🫐</div>
-            <div class="item-card" onclick="spawn('steak')">🥩</div>
-            <div class="item-card" onclick="spawn('chicken')">🍗</div>
-            <div class="item-card" onclick="spawn('cookie')">🍪</div>
-            <div class="item-card" onclick="spawn('chocolate')">🍫</div>
-            <div class="item-card" onclick="spawn('egg')">🥚</div>
-        </div>
-
-        <div id="shelfTools" class="shelf">
-            <div class="item-card" onclick="spawn('pan')">🍳</div>
-        </div>
-    </div>
-
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-                "cannon": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm"
-            }
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+            "cannon": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm"
         }
-    </script>
+    }
+</script>
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import * as CANNON from 'cannon';
+<script type="module">
+    import * as THREE from 'three';
+    import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+    import { DragControls } from 'three/addons/controls/DragControls.js';
+    import * as CANNON from 'cannon';
 
-        // --- Setup ---
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        document.body.appendChild(renderer.domElement);
+    // 1. HARD-CODED MODEL CONFIGURATION
+    const INGREDIENTS = {
+        apple: { icon: '🍎', file: 'apple.fbx', texture: 'apple_tex.png', color: 0xff0000 },
+        banana: { icon: '🍌', file: 'banana.fbx', texture: null, color: 0xffe135 },
+        orange: { icon: '🍊', file: 'orange.fbx', texture: 'orange_tex.png', color: 0xffa500 },
+        lemon: { icon: '🍋', file: 'lemon.fbx', texture: null, color: 0xffff00 },
+        grape: { icon: '🍇', file: 'grape.fbx', texture: null, color: 0x6f2da8 },
+        strawberry: { icon: '🍓', file: 'strawberry.fbx', texture: null, color: 0xff2800 },
+        steak: { icon: '🥩', file: 'steak.fbx', texture: 'meat_tex.png', color: 0x911e1e },
+        cookie: { icon: '🍪', file: 'cookie.fbx', texture: null, color: 0x6b4423 },
+        chocolate: { icon: '🍫', file: 'chocolate.fbx', texture: null, color: 0x3d1d16 },
+        egg: { icon: '🥚', file: 'egg.fbx', texture: null, color: 0xffffff },
+        yolk: { icon: '🍳', file: 'openeggwithyolk.fbx', texture: null, color: 0xffcc00 }
+    };
 
-        const world = new CANNON.World();
-        world.gravity.set(0, -9.82, 0);
+    // 2. SCENE SETUP
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 5, 10);
+    camera.lookAt(0, 0, 0);
 
-        // --- Environment ---
-        const loader = new THREE.TextureLoader();
-        scene.background = loader.load('background.png');
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    document.body.appendChild(renderer.domElement);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-        scene.add(ambientLight);
+    const world = new CANNON.World();
+    world.gravity.set(0, -9.82, 0);
 
-        const sun = new THREE.DirectionalLight(0xffffff, 1);
-        sun.position.set(5, 10, 5);
-        sun.castShadow = true;
-        scene.add(sun);
+    // Background
+    const loader = new THREE.TextureLoader();
+    loader.load('background.png', (t) => scene.background = t);
 
-        // --- The Table ---
-        const fbxLoader = new FBXLoader();
-        fbxLoader.load('models/table.fbx', (fbx) => {
-            fbx.traverse(c => { if(c.isMesh) c.receiveShadow = true; });
+    // Lights
+    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+    dirLight.position.set(5, 10, 5);
+    dirLight.castShadow = true;
+    scene.add(dirLight);
+
+    // 3. THE TABLE
+    const fbxLoader = new FBXLoader();
+    fbxLoader.load('models/table.fbx', (fbx) => {
+        fbx.position.y = -1;
+        fbx.traverse(c => { if(c.isMesh) c.receiveShadow = true; });
+        scene.add(fbx);
+        
+        const groundBody = new CANNON.Body({ mass: 0 });
+        groundBody.addShape(new CANNON.Plane());
+        groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI/2);
+        world.addBody(groundBody);
+    });
+
+    // 4. SPAWNING LOGIC
+    const draggableObjects = [];
+    const physicsPairs = [];
+
+    window.spawn = function(key) {
+        const config = INGREDIENTS[key];
+        fbxLoader.load(`models/${config.file}`, (fbx) => {
+            fbx.scale.set(0.005, 0.005, 0.005);
+            fbx.position.set(Math.random()-0.5, 4, Math.random()-0.5);
+
+            fbx.traverse(child => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    // Apply Texture if available, else use optional hardcoded color
+                    if (config.texture) {
+                        child.material.map = loader.load(`models/${config.texture}`);
+                    } else {
+                        child.material = new THREE.MeshPhongMaterial({ color: config.color });
+                    }
+                }
+            });
+
+            const body = new CANNON.Body({ 
+                mass: 1, 
+                shape: new CANNON.Sphere(0.3),
+                position: new CANNON.Vec3(fbx.position.x, fbx.position.y, fbx.position.z)
+            });
+
+            world.addBody(body);
             scene.add(fbx);
-            // Physics floor for table top
-            const groundBody = new CANNON.Body({ mass: 0 });
-            groundBody.addShape(new CANNON.Plane());
-            groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI/2);
-            groundBody.position.set(0, 0.75, 0); // Adjust based on table height
-            world.addBody(groundBody);
+            draggableObjects.push(fbx);
+            physicsPairs.push({ mesh: fbx, body: body });
         });
+    };
 
-        // --- Spawning System ---
-        const models = {};
-        const physicsBodies = [];
-
-        window.spawn = function(name) {
-            fbxLoader.load(`models/${name}.fbx`, (fbx) => {
-                fbx.scale.set(0.01, 0.01, 0.01); // Common FBX scale fix
-                fbx.position.set(Math.random()-0.5, 3, Math.random()-0.5);
-                fbx.traverse(c => { if(c.isMesh) c.castShadow = true; });
-                
-                // Physics
-                const shape = new CANNON.Sphere(0.2); 
-                const body = new CANNON.Body({ mass: 1 });
-                body.addShape(shape);
-                body.position.set(fbx.position.x, fbx.position.y, fbx.position.z);
-                
-                world.addBody(body);
-                scene.add(fbx);
-                
-                physicsBodies.push({ mesh: fbx, body: body });
-            });
-        };
-
-        // --- Controls & Interaction ---
-        const controls = new OrbitControls(camera, renderer.domElement);
-        camera.position.set(0, 2, 3);
-        controls.update();
-
-        // --- Animation Loop ---
-        function animate() {
-            requestAnimationFrame(animate);
-            world.fixedStep();
-
-            physicsBodies.forEach(obj => {
-                obj.mesh.position.copy(obj.body.position);
-                obj.mesh.quaternion.copy(obj.body.quaternion);
-            });
-
-            renderer.render(scene, camera);
+    // 5. DRAG CONTROLS
+    const dControls = new DragControls(draggableObjects, camera, renderer.domElement);
+    dControls.addEventListener('dragstart', (e) => {
+        const pair = physicsPairs.find(p => p.mesh === e.object);
+        if (pair) pair.body.mass = 0; // Make weightless while dragging
+    });
+    dControls.addEventListener('dragend', (e) => {
+        const pair = physicsPairs.find(p => p.mesh === e.object);
+        if (pair) {
+            pair.body.mass = 1;
+            pair.body.position.copy(e.object.position);
+            pair.body.velocity.set(0,0,0); // Stop it from flying away
         }
-        animate();
+    });
 
-        // --- UI Logic ---
-        window.toggleShelf = (id) => {
-            const el = document.getElementById(id);
-            const isActive = el.classList.contains('active');
-            document.querySelectorAll('.shelf').forEach(s => s.classList.remove('active'));
-            if(!isActive) el.classList.add('active');
-        };
+    // 6. UI GENERATION
+    const shelf = document.getElementById('shelf');
+    Object.keys(INGREDIENTS).forEach(key => {
+        const div = document.createElement('div');
+        div.className = 'item';
+        div.innerHTML = INGREDIENTS[key].icon;
+        div.onclick = () => spawn(key);
+        shelf.appendChild(div);
+    });
 
-        window.startEating = () => {
-            document.getElementById('eatingScreen').style.display = 'flex';
-        };
+    window.toggleShelf = () => shelf.classList.toggle('active');
 
-        window.stopEating = () => {
-            document.getElementById('eatingScreen').style.display = 'none';
-            // Logic to clear scene
-            physicsBodies.forEach(obj => {
-                scene.remove(obj.mesh);
-                world.removeBody(obj.body);
-            });
-            physicsBodies.length = 0;
-        };
-    </script>
+    // 7. ANIMATION LOOP
+    function animate() {
+        requestAnimationFrame(animate);
+        world.fixedStep();
+        physicsPairs.forEach(p => {
+            if (p.body.mass > 0) { // Only sync physics if not being dragged
+                p.mesh.position.copy(p.body.position);
+                p.mesh.quaternion.copy(p.body.quaternion);
+            }
+        });
+        renderer.render(scene, camera);
+    }
+    animate();
+</script>
 </body>
 </html>
