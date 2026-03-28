@@ -3,56 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Happy Food</title>
+    <title>2.5D Sandbox Kitchen - Trash & Tools</title>
     <style>
-        :root {
-            --glass: rgba(255, 255, 255, 0.1);
-            --accent: #ff9f43;
-        }
-        body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Inter', sans-serif; }
+        :root { --glass: rgba(255, 255, 255, 0.1); --accent: #ff9f43; --tool-accent: #4ecdc4; }
+        body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Inter', sans-serif; touch-action: none; }
         
-        /* UI Styling */
+        /* UI HUD */
         .hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; padding: 20px; box-sizing: border-box; }
         .nav { display: flex; gap: 10px; pointer-events: auto; }
-        .btn {
-            background: var(--glass); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2);
-            color: white; padding: 12px 20px; border-radius: 8px; cursor: pointer; transition: 0.3s;
-        }
+        .btn { background: var(--glass); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 12px 20px; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold; }
         .btn:hover { background: var(--accent); }
+        .btn-tool:hover { background: var(--tool-accent); }
 
-        .shelf {
-            position: absolute; bottom: -400px; left: 50%; transform: translateX(-50%);
-            width: 80%; background: rgba(0,0,0,0.8); backdrop-filter: blur(20px);
-            padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
-            gap: 15px; border-radius: 20px 20px 0 0; transition: 0.5s; pointer-events: auto;
-        }
+        /* Shelves */
+        .shelf { position: absolute; bottom: -400px; left: 50%; transform: translateX(-50%); width: 85%; max-width: 800px; background: rgba(0,0,0,0.85); backdrop-filter: blur(20px); padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); gap: 15px; border-radius: 20px 20px 0 0; transition: 0.5s ease-out; pointer-events: auto; border: 1px solid rgba(255,255,255,0.1); }
         .shelf.active { bottom: 0; }
-        .item { 
-            background: rgba(255,255,255,0.05); aspect-ratio: 1; border-radius: 10px; 
-            display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 24px;
+        .item { background: rgba(255,255,255,0.05); aspect-ratio: 1; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 28px; transition: transform 0.2s; border: 1px solid transparent; }
+        .item:hover { transform: scale(1.1); background: var(--glass); border-color: rgba(255,255,255,0.5); }
+
+        /* Trash Can */
+        #trash-zone {
+            position: absolute; right: 20px; bottom: 20px; width: 80px; height: 80px;
+            background: rgba(238, 82, 83, 0.2); border: 2px dashed #ee5253; border-radius: 16px;
+            display: flex; align-items: center; justify-content: center; font-size: 32px;
+            pointer-events: auto; transition: 0.3s; z-index: 5;
         }
-        #eatView { 
-            position: fixed; inset: 0; background: black; display: none; 
-            flex-direction: column; align-items: center; justify-content: center; color: white; z-index: 100;
-        }
+        #trash-zone.hovered { background: rgba(238, 82, 83, 0.6); transform: scale(1.1); }
     </style>
 </head>
 <body>
 
-<div id="eatView">
-    <h1 style="font-size: 60px;">😋 NOM NOM!</h1>
-    <button class="btn" onclick="location.reload()">Cook Again</button>
-</div>
-
 <div class="hud">
     <div class="nav">
-        <button class="btn" onclick="toggleShelf()">📦 Pantry</button>
-        <button class="btn" style="margin-left:auto; background: #ee5253;" onclick="document.getElementById('eatView').style.display='flex'">🍽️ Eat Food</button>
+        <button class="btn" onclick="toggleShelf('shelf-ingredients')">📦 Ingredients</button>
+        <button class="btn btn-tool" onclick="toggleShelf('shelf-tools')">🛠️ Tools</button>
+        <button class="btn" style="margin-left:auto; background: #ee5253;" onclick="location.reload()">🧹 Reset</button>
     </div>
 
-    <div id="shelf" class="shelf">
-        </div>
+    <div id="shelf-ingredients" class="shelf"></div>
+    <div id="shelf-tools" class="shelf"></div>
 </div>
+
+<div id="trash-zone">🗑️</div>
 
 <script type="importmap">
     {
@@ -70,7 +62,7 @@
     import { DragControls } from 'three/addons/controls/DragControls.js';
     import * as CANNON from 'cannon';
 
-    // 1. HARD-CODED MODEL CONFIGURATION
+    // 1. SEPARATE DATA DICTIONARIES
     const INGREDIENTS = {
         apple: { icon: '🍎', file: 'apple.fbx', texture: 'apple_tex.png', color: 0xff0000 },
         banana: { icon: '🍌', file: 'banana.fbx', texture: null, color: 0xffe135 },
@@ -85,11 +77,22 @@
         yolk: { icon: '🍳', file: 'openeggwithyolk.fbx', texture: null, color: 0xffcc00 }
     };
 
-    // 2. SCENE SETUP
+    const TOOLS = {
+        // Example placeholders for tools you'll add later
+        knife: { icon: '🔪', file: 'knife.fbx', texture: null, color: 0xaaaaaa },
+        pan: { icon: '🥘', file: 'pan.fbx', texture: null, color: 0x333333 }
+    };
+
+    // 2. SCENE & 2.5D CAMERA
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 5, 10);
-    camera.lookAt(0, 0, 0);
+    const aspect = window.innerWidth / window.innerHeight;
+    const frustumSize = 6;
+    const camera = new THREE.OrthographicCamera(
+        frustumSize * aspect / -2, frustumSize * aspect / 2, 
+        frustumSize / 2, frustumSize / -2, 0.1, 1000
+    );
+    camera.position.set(0, 1, 10); 
+    camera.lookAt(0, 1, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -97,58 +100,60 @@
     document.body.appendChild(renderer.domElement);
 
     const world = new CANNON.World();
-    world.gravity.set(0, -9.82, 0);
+    world.gravity.set(0, -12, 0);
 
-    // Background
-    const loader = new THREE.TextureLoader();
-    loader.load('background.png', (t) => scene.background = t);
+    const texLoader = new THREE.TextureLoader();
+    texLoader.load('background.png', (t) => scene.background = t);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+    sun.position.set(2, 5, 5);
+    sun.castShadow = true;
+    scene.add(sun);
 
-    // Lights
-    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-    dirLight.position.set(5, 10, 5);
-    dirLight.castShadow = true;
-    scene.add(dirLight);
-
-    // 3. THE TABLE
+    // 3. TABLE
     const fbxLoader = new FBXLoader();
     fbxLoader.load('models/table.fbx', (fbx) => {
-        fbx.position.y = -1;
-        fbx.traverse(c => { if(c.isMesh) c.receiveShadow = true; });
+        fbx.position.set(0, -2.5, 0); 
+        fbx.scale.set(0.006, 0.006, 0.006);
+        fbx.traverse(c => { if(c.isMesh) { c.receiveShadow = true; c.castShadow = true; }});
         scene.add(fbx);
-        
+
         const groundBody = new CANNON.Body({ mass: 0 });
-        groundBody.addShape(new CANNON.Plane());
-        groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI/2);
+        groundBody.addShape(new CANNON.Box(new CANNON.Vec3(10, 0.1, 10)));
+        groundBody.position.set(0, -1.2, 0); // Floor height
         world.addBody(groundBody);
     });
 
-    // 4. SPAWNING LOGIC
+    // 4. SPAWNING LOGIC (Accepts 'ingredient' or 'tool' category)
     const draggableObjects = [];
     const physicsPairs = [];
 
-    window.spawn = function(key) {
-        const config = INGREDIENTS[key];
+    window.spawn = function(key, category) {
+        const config = category === 'tool' ? TOOLS[key] : INGREDIENTS[key];
+        
         fbxLoader.load(`models/${config.file}`, (fbx) => {
-            fbx.scale.set(0.005, 0.005, 0.005);
-            fbx.position.set(Math.random()-0.5, 4, Math.random()-0.5);
+            fbx.scale.set(0.004, 0.004, 0.004);
+            fbx.position.set((Math.random() - 0.5) * 4, 4, 0); 
 
             fbx.traverse(child => {
                 if (child.isMesh) {
                     child.castShadow = true;
-                    // Apply Texture if available, else use optional hardcoded color
                     if (config.texture) {
-                        child.material.map = loader.load(`models/${config.texture}`);
+                        child.material.map = texLoader.load(`models/${config.texture}`);
                     } else {
                         child.material = new THREE.MeshPhongMaterial({ color: config.color });
                     }
                 }
             });
 
+            // Make tools heavier than ingredients as an example
+            const objectMass = category === 'tool' ? 3 : 1;
+
             const body = new CANNON.Body({ 
-                mass: 1, 
+                mass: objectMass, 
                 shape: new CANNON.Sphere(0.3),
-                position: new CANNON.Vec3(fbx.position.x, fbx.position.y, fbx.position.z)
+                position: new CANNON.Vec3(fbx.position.x, fbx.position.y, 0),
+                linearDamping: 0.5
             });
 
             world.addBody(body);
@@ -158,39 +163,96 @@
         });
     };
 
-    // 5. DRAG CONTROLS
-    const dControls = new DragControls(draggableObjects, camera, renderer.domElement);
-    dControls.addEventListener('dragstart', (e) => {
-        const pair = physicsPairs.find(p => p.mesh === e.object);
-        if (pair) pair.body.mass = 0; // Make weightless while dragging
+    // 5. TRASH TRACKING & DRAG CONTROLS
+    let mouseX = 0, mouseY = 0;
+    window.addEventListener('pointermove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
     });
-    dControls.addEventListener('dragend', (e) => {
-        const pair = physicsPairs.find(p => p.mesh === e.object);
-        if (pair) {
-            pair.body.mass = 1;
-            pair.body.position.copy(e.object.position);
-            pair.body.velocity.set(0,0,0); // Stop it from flying away
+
+    const trashZone = document.getElementById('trash-zone');
+    const dControls = new DragControls(draggableObjects, camera, renderer.domElement);
+
+    dControls.addEventListener('dragstart', (e) => {
+        const p = physicsPairs.find(x => x.mesh === e.object);
+        if (p) { p.body.mass = 0; p.body.velocity.set(0,0,0); }
+    });
+
+    dControls.addEventListener('drag', (e) => {
+        e.object.position.z = 0; // Lock Z
+        
+        // Highlight trash can if hovering over it
+        const rect = trashZone.getBoundingClientRect();
+        if (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom) {
+            trashZone.classList.add('hovered');
+        } else {
+            trashZone.classList.remove('hovered');
         }
     });
 
-    // 6. UI GENERATION
-    const shelf = document.getElementById('shelf');
+    dControls.addEventListener('dragend', (e) => {
+        const p = physicsPairs.find(x => x.mesh === e.object);
+        const rect = trashZone.getBoundingClientRect();
+        trashZone.classList.remove('hovered');
+
+        // Check if dropped inside the Trash Zone bounds
+        if (mouseX >= rect.left && mouseX <= rect.right && mouseY >= rect.top && mouseY <= rect.bottom) {
+            // Delete the object entirely
+            scene.remove(e.object);
+            draggableObjects.splice(draggableObjects.indexOf(e.object), 1);
+            if (p) {
+                world.removeBody(p.body);
+                physicsPairs.splice(physicsPairs.indexOf(p), 1);
+            }
+        } else {
+            // Drop it back into the physics world
+            if (p) {
+                p.body.mass = 1; // Restore weight
+                p.body.position.copy(e.object.position);
+                p.body.position.z = 0;
+            }
+        }
+    });
+
+    // 6. UI GENERATION & TOGGLES
+    const shelfIngredients = document.getElementById('shelf-ingredients');
     Object.keys(INGREDIENTS).forEach(key => {
         const div = document.createElement('div');
         div.className = 'item';
         div.innerHTML = INGREDIENTS[key].icon;
-        div.onclick = () => spawn(key);
-        shelf.appendChild(div);
+        div.onclick = () => spawn(key, 'ingredient');
+        shelfIngredients.appendChild(div);
     });
 
-    window.toggleShelf = () => shelf.classList.toggle('active');
+    const shelfTools = document.getElementById('shelf-tools');
+    Object.keys(TOOLS).forEach(key => {
+        const div = document.createElement('div');
+        div.className = 'item';
+        div.innerHTML = TOOLS[key].icon;
+        div.onclick = () => spawn(key, 'tool');
+        shelfTools.appendChild(div);
+    });
 
-    // 7. ANIMATION LOOP
+    window.toggleShelf = (targetId) => {
+        // Close all shelves except the one we clicked
+        document.querySelectorAll('.shelf').forEach(shelf => {
+            if (shelf.id === targetId) {
+                shelf.classList.toggle('active');
+            } else {
+                shelf.classList.remove('active');
+            }
+        });
+    };
+
+    // 7. RENDER LOOP
     function animate() {
         requestAnimationFrame(animate);
         world.fixedStep();
+        
         physicsPairs.forEach(p => {
-            if (p.body.mass > 0) { // Only sync physics if not being dragged
+            p.body.position.z = 0;
+            p.body.velocity.z = 0;
+            if (p.body.mass > 0) {
                 p.mesh.position.copy(p.body.position);
                 p.mesh.quaternion.copy(p.body.quaternion);
             }
@@ -198,6 +260,16 @@
         renderer.render(scene, camera);
     }
     animate();
+
+    window.addEventListener('resize', () => {
+        const newAspect = window.innerWidth / window.innerHeight;
+        camera.left = -frustumSize * newAspect / 2;
+        camera.right = frustumSize * newAspect / 2;
+        camera.top = frustumSize / 2;
+        camera.bottom = -frustumSize / -2;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
 </script>
 </body>
 </html>
