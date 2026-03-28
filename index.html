@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro 3D Sandbox Kitchen</title>
+    <style>
+        :root {
+            --glass: rgba(255, 255, 255, 0.2);
+            --accent: #ff6b6b;
+        }
+        body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background: #1a1a1a; }
+        
+        /* Modern Glass UI */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10;
+            display: flex; flex-direction: column;
+        }
+
+        .hud-top {
+            display: flex; justify-content: space-between; padding: 20px;
+        }
+
+        .btn-main {
+            pointer-events: auto;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        .btn-main:hover { background: var(--accent); transform: scale(1.05); }
+
+        /* Fancy Shelf */
+        .shelf {
+            pointer-events: auto;
+            position: absolute;
+            bottom: -300px; left: 50%;
+            transform: translateX(-50%);
+            width: 80%; max-width: 800px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(20px);
+            border-radius: 20px 20px 0 0;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+            gap: 15px;
+            transition: bottom 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .shelf.active { bottom: 0; }
+
+        .item-card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            aspect-ratio: 1/1;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 24px; transition: 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .item-card:hover { background: var(--accent); border-color: white; }
+
+        #eatingScreen {
+            position: fixed; inset: 0; background: black; z-index: 100;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            color: white; font-size: 2rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="eatingScreen">
+        <div style="font-size: 100px">😋</div>
+        <p>Delicious!</p>
+        <button class="btn-main" onclick="stopEating()">Return to Kitchen</button>
+    </div>
+
+    <div class="overlay">
+        <div class="hud-top">
+            <div style="display:flex; gap:10px;">
+                <button class="btn-main" onclick="toggleShelf('shelfIngredients')">🍎 Ingredients</button>
+                <button class="btn-main" onclick="toggleShelf('shelfTools')" style="--accent: #4ecdc4;">🍳 Tools</button>
+            </div>
+            <button class="btn-main" onclick="startEating()" style="--accent: #ffd166; color: #333;">🍽️ Eat Finished Meal</button>
+        </div>
+
+        <div id="shelfIngredients" class="shelf">
+            <div class="item-card" onclick="spawn('apple')">🍎</div>
+            <div class="item-card" onclick="spawn('orange')">🍊</div>
+            <div class="item-card" onclick="spawn('lemon')">🍋</div>
+            <div class="item-card" onclick="spawn('lime')">🥬</div>
+            <div class="item-card" onclick="spawn('grape')">🍇</div>
+            <div class="item-card" onclick="spawn('strawberry')">🍓</div>
+            <div class="item-card" onclick="spawn('blueberry')">🫐</div>
+            <div class="item-card" onclick="spawn('steak')">🥩</div>
+            <div class="item-card" onclick="spawn('chicken')">🍗</div>
+            <div class="item-card" onclick="spawn('cookie')">🍪</div>
+            <div class="item-card" onclick="spawn('chocolate')">🍫</div>
+            <div class="item-card" onclick="spawn('egg')">🥚</div>
+        </div>
+
+        <div id="shelfTools" class="shelf">
+            <div class="item-card" onclick="spawn('pan')">🍳</div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "cannon": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import * as CANNON from 'cannon';
+
+        // --- Setup ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const world = new CANNON.World();
+        world.gravity.set(0, -9.82, 0);
+
+        // --- Environment ---
+        const loader = new THREE.TextureLoader();
+        scene.background = loader.load('background.png');
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+
+        const sun = new THREE.DirectionalLight(0xffffff, 1);
+        sun.position.set(5, 10, 5);
+        sun.castShadow = true;
+        scene.add(sun);
+
+        // --- The Table ---
+        const fbxLoader = new FBXLoader();
+        fbxLoader.load('models/table.fbx', (fbx) => {
+            fbx.traverse(c => { if(c.isMesh) c.receiveShadow = true; });
+            scene.add(fbx);
+            // Physics floor for table top
+            const groundBody = new CANNON.Body({ mass: 0 });
+            groundBody.addShape(new CANNON.Plane());
+            groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI/2);
+            groundBody.position.set(0, 0.75, 0); // Adjust based on table height
+            world.addBody(groundBody);
+        });
+
+        // --- Spawning System ---
+        const models = {};
+        const physicsBodies = [];
+
+        window.spawn = function(name) {
+            fbxLoader.load(`models/${name}.fbx`, (fbx) => {
+                fbx.scale.set(0.01, 0.01, 0.01); // Common FBX scale fix
+                fbx.position.set(Math.random()-0.5, 3, Math.random()-0.5);
+                fbx.traverse(c => { if(c.isMesh) c.castShadow = true; });
+                
+                // Physics
+                const shape = new CANNON.Sphere(0.2); 
+                const body = new CANNON.Body({ mass: 1 });
+                body.addShape(shape);
+                body.position.set(fbx.position.x, fbx.position.y, fbx.position.z);
+                
+                world.addBody(body);
+                scene.add(fbx);
+                
+                physicsBodies.push({ mesh: fbx, body: body });
+            });
+        };
+
+        // --- Controls & Interaction ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        camera.position.set(0, 2, 3);
+        controls.update();
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            world.fixedStep();
+
+            physicsBodies.forEach(obj => {
+                obj.mesh.position.copy(obj.body.position);
+                obj.mesh.quaternion.copy(obj.body.quaternion);
+            });
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // --- UI Logic ---
+        window.toggleShelf = (id) => {
+            const el = document.getElementById(id);
+            const isActive = el.classList.contains('active');
+            document.querySelectorAll('.shelf').forEach(s => s.classList.remove('active'));
+            if(!isActive) el.classList.add('active');
+        };
+
+        window.startEating = () => {
+            document.getElementById('eatingScreen').style.display = 'flex';
+        };
+
+        window.stopEating = () => {
+            document.getElementById('eatingScreen').style.display = 'none';
+            // Logic to clear scene
+            physicsBodies.forEach(obj => {
+                scene.remove(obj.mesh);
+                world.removeBody(obj.body);
+            });
+            physicsBodies.length = 0;
+        };
+    </script>
+</body>
+</html>
